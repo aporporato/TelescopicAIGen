@@ -1,0 +1,5 @@
+{
+  "name": "AI Telescopic Text",
+  "description": "An AI-powered version of Telescopic Text. Provide a prompt to start a story, then click on highlighted words to expand the narrative with dynamically generated content from Gemini.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,19 @@
+<span 
+  [class.text-indigo-600]="node.expandable && node.children.length === 0"
+  [class.font-semibold]="node.expandable && node.children.length === 0"
+  [class.cursor-pointer]="node.expandable && node.children.length === 0"
+  [class.hover:underline]="node.expandable && node.children.length === 0"
+  [class.animate-pulse-bg]="node.isLoading"
+  [class.rounded]="node.isLoading"
+  [class.text-indigo-800]="node.children.length > 0"
+  [class.font-medium]="node.children.length > 0"
+  (click)="onExpandClick()">
+  {{ node.content }}
+</span>
+@if(node.children.length > 0) {
+  <span class="font-normal text-slate-700">
+    @for (child of node.children; track child.id) {
+      <app-story-node [node]="child" (expand)="expand.emit($event)"></app-story-node>
+    }
+  </span>
+}

@@ -1,0 +1,89 @@
+import { Injectable } from '@angular/core';
+import { GoogleGenAI, Type } from '@google/genai';
+
+export interface StorySegment {
+  content: string;
+  expandable: boolean;
+}
+
+@Injectable({ providedIn: 'root' })
+export class GeminiService {
+  private ai: GoogleGenAI;
+
+  constructor() {
+    // IMPORTANT: This assumes process.env.API_KEY is available in the execution environment.
+    // In a real-world Applet, this would be managed by the host environment.
+    const apiKey = (window as any).process?.env?.API_KEY ?? '';
+    if (!apiKey) {
+      console.error('API Key not found. Please ensure it is set in your environment variables.');
+    }
+    this.ai = new GoogleGenAI({ apiKey });
+  }
+
+  private readonly responseSchema = {
+    type: Type.ARRAY,
+    items: {
+      type: Type.OBJECT,
+      properties: {
+        content: {
+          type: Type.STRING,
+          description: 'A segment of the story text.',
+        },
+        expandable: {
+          type: Type.BOOLEAN,
+          description: 'Whether this segment can be expanded further.',
+        },
+      },
+      required: ['content', 'expandable'],
+    },
+  };
+
+  async generateInitialStory(prompt: string): Promise<StorySegment[]> {
+    const systemInstruction = `You are a creative writer. Your task is to start a story based on a user's prompt. 
+    1. Write a single, compelling opening sentence.
+    2. Break down this sentence into segments of text.
+    3. Identify 2-4 interesting nouns or verb phrases within the sentence that could be expanded upon to continue the story. Mark these as expandable.
+    4. Return the result as a JSON array of objects, each with 'content' and 'expandable' properties, according to the provided schema.
+    5. Ensure the segments, when joined, form the complete, original sentence. Non-expandable text segments should surround the expandable ones.`;
+
+    const response = await this.ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `Prompt: "${prompt}"`,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: this.responseSchema,
+        temperature: 0.8,
+      },
+    });
+    
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText) as StorySegment[];
+  }
+
+  async expandText(context: string, textToExpand: string): Promise<StorySegment[]> {
+    const systemInstruction = `You are a master of unfolding narratives, continuing a story by elaborating on a specific phrase.
+    1. You will be given the story so far (context) and a specific phrase to expand.
+    2. Write one or two concise sentences that elaborate ONLY on the given phrase, seamlessly continuing the narrative.
+    3. Break down your new sentences into segments, identifying 1-3 new interesting words or phrases to be expandable.
+    4. Return your elaboration as a JSON array of objects, following the provided schema.
+    5. Do NOT repeat the phrase to expand in your response. Your response is what comes AFTER it.
+    6. Your response should start with a space to properly connect to the preceding word.`;
+    
+    const contents = `Context: "${context}"\n\nPhrase to expand: "${textToExpand}"`;
+
+    const response = await this.ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents,
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: this.responseSchema,
+        temperature: 0.9,
+      },
+    });
+
+    const jsonText = response.text.trim();
+    return JSON.parse(jsonText) as StorySegment[];
+  }
+}
