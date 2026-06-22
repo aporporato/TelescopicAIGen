@@ -1,53 +1,55 @@
 # AI Telescopic Text
 
-AI Telescopic Text is an interactive writing experiment inspired by the classic [Telescopic Text](https://www.telescopictext.org/) format. Instead of using a predefined, hardcoded hierarchy of substitutions, this application dynamically requests contextual expansions from an LLM (Anthropic's Claude 3) in real-time.
+AI Telescopic Text is an interactive writing experiment inspired by the classic [Telescopic Text](https://www.telescopictext.org/) format. Instead of using a predefined, hardcoded hierarchy of substitutions, this application dynamically requests contextual expansions from an LLM in real-time.
 
-Clicking any word in a sentence automatically replaces that word with a blank (`_`) in the background, asks the LLM to write a fitting, detailed expansion for that blank, and injects it recursively.
+Clicking any word in a sentence replaces that word with a blank (`_`) in the background, requests a detailed expansion from your chosen LLM, and injects it recursively, letting you create deeply nested, expandable stories.
+
+---
 
 ## Features
 
-- **Dynamic LLM Expansions**: Contextualized, natural phrase expansions generated on-the-fly by Anthropic's Claude API.
+- **Multiple LLM Providers**: Choose dynamically between:
+  - **OpenAI** `gpt-5.4-nano`
+  - **Google** `gemini-3.5-flash`
+  - **Anthropic** `claude-haiku-4-5`
+- **Bring Your Own Key (BYOK)**: Strict privacy-first design. All API keys are processed strictly in-memory, never recorded on the server, and never saved in `localStorage` or `sessionStorage` (lost instantly upon page refresh). Keys are cached in-memory per provider for convenient switching.
 - **Recursive Branching**: Expanded words themselves can be clicked to be expanded further.
-- **Interactive Collapsing**: Hovering over any expanded block displays a collapse handler (`×`) to fold it back to its original state.
-- **Premium Dark Design System**: Built with modern typography (Outfit & Inter), glassmorphism, glowing accents, and smooth hover/loader states.
-- **State-driven Rendering**: Dynamic tree-based DOM reconstruction on the frontend with zero build tools (Vanilla JS/CSS).
-- **FastAPI Backend**: Simple, asynchronous, type-safe API routing.
+- **Interactive Collapsing**: Double-click any expanded block to collapse it back to its original state.
+- **Minimalist Typographic Design**: A clean, light typographic style reminiscent of the classic telescopictext.org, using high-quality serif body font, subtle shaded triggers, and smooth micro-animations.
+- **FastAPI Backend**: A lightweight, asynchronous, type-safe API backend with clean JSON-parsing fallbacks.
+
+---
 
 ## Project Structure
 
 ```text
 TelescopicAI/
 ├── static/
-│   └── style.css          # Premium dark design styles and animations
+│   └── style.css          # Minimalist typographic styling and transition effects
 ├── templates/
-│   └── index.html         # Main workspace layout and state-driven JS
-├── app.py                 # FastAPI backend server with /api/expand endpoint
+│   └── index.html         # Main workspace layout and state-driven Vanilla JS
+├── app.py                 # FastAPI backend server with /api/expand and /api/config endpoints
 ├── pyproject.toml         # Python project configuration for uv dependency management
-├── .env                   # Environment config (API keys)
+├── uv.lock                # Locked dependencies for reproducible environments
 └── README.md              # Project documentation
 ```
+
+---
 
 ## Setup Instructions
 
 ### Prerequisites
-- [uv](https://github.com/astral-sh/uv) (Astral's fast Python package installer and resolver)
-- An Anthropic API Key
+- [uv](https://github.com/astral-sh/uv) (Astral's fast Python package installer and manager)
 
-### 1. Configure Environment Variables
-Create or update your `.env` file in the root directory and add your Anthropic API Key:
-```env
-ANTHROPIC_API_KEY=your_actual_anthropic_api_key_here
-```
-
-### 2. Setup the Environment
-Using `uv`, you can install dependencies and prepare the virtual environment automatically:
+### 1. Setup the Python Environment
+Using `uv`, you can prepare the virtual environment and sync dependencies automatically:
 ```bash
 uv sync
 ```
-This command creates a local virtual environment (`.venv`) and syncs all dependencies listed in `pyproject.toml`.
+This command creates a local virtual environment (`.venv`) and installs all dependencies listed in `pyproject.toml`.
 
-### 3. Run the Application
-You can run the application directly within the virtual environment using:
+### 2. Run the Application
+Start the FastAPI server using `uv run`:
 ```bash
 uv run python app.py
 ```
@@ -56,18 +58,19 @@ Or start uvicorn directly:
 uv run uvicorn app:app --reload
 ```
 
-Open your browser and navigate to `http://127.0.0.1:8000` to start expanding your texts!
+The application will start running at `http://127.0.0.1:8000`.
 
-## How It Works Under the Hood
+---
 
-1. **State representation**: The text is modeled as a tree. Nodes are either plain words or expandable nodes with children arrays.
-2. **Context Creation**: When a word is clicked, the tree is traversed to form the full current sentence, replacing the clicked node with a blank `_`.
-3. **API Call**: The sentence (e.g. `"I _ tea."`) is sent to the backend `/api/expand` route.
-4. **LLM Generation**: Claude receives the sentence with the blank, generates a 2-6 word replacement, and returns a JSON payload:
-   ```json
-   {
-     "replacement": "carefully brewed a hot cup of",
-     "sentence": "I carefully brewed a hot cup of tea."
-   }
-   ```
-5. **DOM Injection**: The frontend tokenizes the replacement, converts it to nested tree nodes, and dynamically updates the DOM.
+## How to Use It
+
+1. Open your browser and navigate to `http://127.0.0.1:8000`.
+2. Click **Settings** in the top-right navigation bar to open the settings drawer.
+3. Select your preferred LLM provider by clicking its card:
+   - **OpenAI** (`gpt-5.4-nano`)
+   - **Google** (`gemini-3.5-flash`)
+   - **Anthropic** (`claude-haiku-4-5`)
+4. Paste your API key into the input field. Note that each provider maintains its own key state in-memory so you can switch models freely without losing your keys.
+5. Click on any shaded word trigger in the canvas (e.g. `"I"`, `"made"`, or `"tea"`) to trigger a dynamic AI expansion.
+6. **Double-click** anywhere inside an expanded phrase to collapse it back into its original single word.
+7. Click **Reset** in the top-right navigation bar at any point to start over.

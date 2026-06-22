@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Telescopic Text</title>
     <link rel="stylesheet" href="/static/style.css?v=6">
+    <link rel="icon" type="image/png" href="/static/favicon.png">
 </head>
 <body>
     <div id="content">
@@ -319,8 +320,7 @@
                 
                 // Extract provider display name and model name
                 const providerDisplay = m.provider.charAt(0).toUpperCase() + m.provider.slice(1);
-                // For name like "OpenAI gpt-5.4-nano", take everything after first word
-                const modelNameDisplay = m.name.substring(m.name.indexOf(' ') + 1);
+                const modelNameDisplay = m.name;
                 
                 return `
                     <div class="model-card ${isActive ? 'active' : ''}" onclick="selectModel('${m.id}')">

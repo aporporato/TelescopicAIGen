@@ -4,11 +4,14 @@ import json
 import logging
 import re
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from google import genai
+from google.genai import types
+from openai import OpenAI
 
 load_dotenv()
 
@@ -26,15 +29,15 @@ if available_models_json:
     except Exception as e:
         logger.error(f"Error parsing AVAILABLE_MODELS JSON: {e}")
         available_models = [
-            {"provider": "openai", "name": "OpenAI gpt-5.4-nano", "id": "gpt-5.4-nano"},
-            {"provider": "google", "name": "Google gemini-3.5-flash", "id": "gemini-3.5-flash"},
-            {"provider": "anthropic", "name": "Anthropic claude-haiku-4-5", "id": "claude-haiku-4-5-20251001"}
+            {"provider": "openai", "name": "GPT-5.4 Nano", "id": "gpt-5.4-nano"},
+            {"provider": "google", "name": "Gemini 3.5 Flash", "id": "gemini-3.5-flash"},
+            {"provider": "anthropic", "name": "Claude Haiku 4.5", "id": "claude-haiku-4-5-20251001"}
         ]
 else:
     available_models = [
-        {"provider": "openai", "name": "OpenAI gpt-5.4-nano", "id": "gpt-5.4-nano"},
-        {"provider": "google", "name": "Google gemini-3.5-flash", "id": "gemini-3.5-flash"},
-        {"provider": "anthropic", "name": "Anthropic claude-haiku-4-5", "id": "claude-haiku-4-5-20251001"}
+        {"provider": "openai", "name": "GPT-5.4 Nano", "id": "gpt-5.4-nano"},
+        {"provider": "google", "name": "Gemini 3.5 Flash", "id": "gemini-3.5-flash"},
+        {"provider": "anthropic", "name": "Claude Haiku 4.5", "id": "claude-haiku-4-5-20251001"}
     ]
 
 # Mount static and templates
@@ -72,6 +75,10 @@ def clean_json_response(text: str) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(os.path.join("static", "favicon.png"))
 
 @app.get("/api/config")
 def get_config():
@@ -122,7 +129,7 @@ Sentence: "{sentence}"
             }
             json_data = {
                 "model": model,
-                "max_tokens": 100,
+                "max_tokens": 1000,
                 "temperature": 0.7,
                 "system": system_prompt,
                 "messages": [{"role": "user", "content": user_prompt}]
@@ -133,49 +140,44 @@ Sentence: "{sentence}"
             raw_text = response.json()["content"][0]["text"]
             
         elif provider == "openai":
-            url = "https://api.openai.com/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "content-type": "application/json"
-            }
-            json_data = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                "max_tokens": 100,
-                "temperature": 0.7,
-                "response_format": {"type": "json_object"}
-            }
-            response = httpx.post(url, headers=headers, json=json_data, timeout=30.0)
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=f"OpenAI API error: {response.text}")
-            raw_text = response.json()["choices"][0]["message"]["content"]
+            try:
+                client = OpenAI(api_key=api_key)
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=1000,
+                    temperature=0.7,
+                    response_format={"type": "json_object"}
+                )
+                raw_text = response.choices[0].message.content
+                if not raw_text:
+                    raise ValueError("OpenAI returned an empty response.")
+            except Exception as e:
+                logger.error(f"OpenAI API error: {e}")
+                raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
             
         elif provider == "google":
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-            headers = {
-                "content-type": "application/json"
-            }
-            json_data = {
-                "systemInstruction": {
-                    "parts": [{"text": system_prompt}]
-                },
-                "contents": [{
-                    "role": "user",
-                    "parts": [{"text": user_prompt}]
-                }],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "maxOutputTokens": 100,
-                    "temperature": 0.7
-                }
-            }
-            response = httpx.post(url, headers=headers, json=json_data, timeout=30.0)
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=f"Gemini API error: {response.text}")
-            raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            try:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model=model,
+                    contents=user_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_prompt,
+                        response_mime_type="application/json",
+                        max_output_tokens=1000,
+                        temperature=0.7,
+                    ),
+                )
+                raw_text = response.text
+                if not raw_text:
+                    raise ValueError("Gemini returned an empty response.")
+            except Exception as e:
+                logger.error(f"Gemini API error: {e}")
+                raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
             
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
