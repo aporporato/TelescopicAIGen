@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telescopic Text</title>
+    <link rel="stylesheet" href="/static/style.css?v=6">
+</head>
+<body>
+    <div id="content">
+        <div id="navigation">
+            <div class="nav-left">
+                <a href="https://www.telescopictext.org/texts/" target="_blank">TelescopicText.org</a>
+            </div>
+            <div class="nav-right">
+                <a href="#" id="settings-toggle">Settings</a>
+                <a href="#" id="reset-link">Reset</a>
+            </div>
+        </div>
+
+        <!-- Collapsible Settings Panel -->
+        <div id="settings-panel" class="collapsed">
+            <div class="settings-title">Select Model</div>
+            <div class="model-cards-container" id="model-cards">
+                <!-- Dynamically generated model cards -->
+            </div>
+            
+            <div class="setting-field key-field">
+                <div class="key-label-row">
+                    <label for="api-key-input" id="key-label">API Key</label>
+                    <span id="key-status-badge" class="status-badge"></span>
+                </div>
+                <input type="password" id="api-key-input" placeholder="Enter your API Key">
+                <div class="key-disclaimer">
+                    Your API key is processed strictly in-memory. It is never stored or recorded anywhere on the server or browser, and is lost upon page refresh.
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Telescopic Text Canvas -->
+        <div class="telescopictext" id="text-canvas"></div>
+
+        <!-- Unobtrusive Footer Info -->
+        <div class="footer-controls">
+            <span>Double-click any expanded text to collapse it back.</span>
+        </div>
+    </div>
+
+    <script>
+        let textState = null;
+        let idCounter = 0;
+        let modelsList = [];
+        let selectedModelId = "";
+        let userApiKeys = {
+            openai: "",
+            google: "",
+            anthropic: ""
+        };
+
+        function generateUniqueId() {
+            return 'node_' + (++idCounter) + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Parse LLM replacement strings containing [[clickable words]] or plain text
+        function parseReplacement(text) {
+            const regex = /\[\[(.*?)\]\]|(\S+)/g;
+            let match;
+            const result = [];
+            
+            while ((match = regex.exec(text)) !== null) {
+                if (match[1] !== undefined) {
+                    result.push({
+                        id: generateUniqueId(),
+                        type: 'trigger',
+                        text: match[1]
+                    });
+                } else if (match[2] !== undefined) {
+                    result.push({
+                        id: generateUniqueId(),
+                        type: 'word',
+                        text: match[2]
+                    });
+                }
+            }
+            return result;
+        }
+
+        // Initialize state with a starting sentence
+        function initSentence(sentence) {
+            let parsedNodes;
+            if (sentence.includes("[[")) {
+                parsedNodes = parseReplacement(sentence);
+            } else {
+                // If starting sentence has no brackets, make all words triggers
+                const words = sentence.split(/\s+/).filter(w => w.length > 0);
+                parsedNodes = words.map(word => ({
+                    id: generateUniqueId(),
+                    type: 'trigger',
+                    text: word
+                }));
+            }
+            textState = {
+                id: 'root',
+                type: 'container',
+                children: parsedNodes
+            };
+            render();
+        }
+
+        // Find a node by ID recursively in the tree
+        function findNodeById(root, id) {
+            if (root.id === id) return root;
+            if (root.children) {
+                for (let child of root.children) {
+                    let found = findNodeById(child, id);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        // Traverse the tree to generate the current sentence with a blank '_' at the target ID
+        function getSentenceWithBlank(targetId) {
+            function traverse(node) {
+                if (node.id === targetId) {
+                    return '_';
+                }
+                if (node.type === 'word' || node.type === 'trigger') {
+                    return node.text;
+                }
+                if (node.type === 'expanded') {
+                    if (!node.isExpanded) {
+                        return node.originalText;
+                    } else {
+                        return node.children.map(traverse).join(' ');
+                    }
+                }
+                if (node.type === 'container') {
+                    return node.children.map(traverse).join(' ');
+                }
+                return '';
+            }
+            
+            let raw = traverse(textState);
+            return raw.replace(/\s+/g, ' ').trim();
+        }
+
+        // Collapse an expanded node back to its original word
+        window.collapseNode = function(event, id) {
+            event.stopPropagation(); // prevent parent click handlers
+            const node = findNodeById(textState, id);
+            if (node && node.type === 'expanded') {
+                node.isExpanded = false;
+                render();
+            }
+        };
+
+        // Expand a word: either toggle back to expanded if already cached, or call API to generate new
+        window.expandWord = function(id) {
+            const node = findNodeById(textState, id);
+            if (!node) return;
+
+            // If it's already an expandable container but collapsed, just restore/expand it instantly
+            if (node.type === 'expanded') {
+                if (!node.isExpanded) {
+                    node.isExpanded = true;
+                    render();
+                }
+                return;
+            }
+
+            const selectedModelObj = modelsList.find(m => m.id === selectedModelId);
+            const provider = selectedModelObj ? selectedModelObj.provider : '';
+            const keyToUse = userApiKeys[provider] || "";
+
+            // Check if key is available
+            if (!keyToUse) {
+                // Expand settings drawer so the user can easily see it
+                document.getElementById('settings-panel').classList.remove('collapsed');
+                alert(`Please enter your ${provider ? provider.toUpperCase() : 'API'} Key in Settings to expand this word.`);
+                return;
+            }
+
+            const sentenceWithBlank = getSentenceWithBlank(id);
+            node.isLoading = true;
+            render();
+
+            fetch('/api/expand', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    sentence_with_blank: sentenceWithBlank,
+                    provider: provider,
+                    model: selectedModelId,
+                    api_key: keyToUse
+                })
+            })
+            .then(res => {
+                if (!res.ok) {
+                    return res.json().then(data => {
+                        throw new Error(data.detail || 'AI failed to expand this word.');
+                    }).catch(() => {
+                        throw new Error('AI failed to expand this word.');
+                    });
+                }
+                return res.json();
+            })
+            .then(data => {
+                node.isLoading = false;
+                const replacement = data.replacement;
+                
+                // Parse the replacement into word/trigger nodes
+                const parsedChildren = parseReplacement(replacement);
+                
+                // Transform the node into an expanded container
+                node.type = 'expanded';
+                node.originalText = node.text;
+                delete node.text;
+                node.isExpanded = true;
+                node.children = parsedChildren;
+
+                render();
+            })
+            .catch(err => {
+                node.isLoading = false;
+                console.error(err);
+                alert("AI Expansion Error: " + err.message);
+                render();
+            });
+        };
+
+        // Render the tree recursively into HTML string
+        function renderNode(node) {
+            if (node.type === 'word') {
+                return `<span class="word-span plain">${escapeHtml(node.text)}</span>`;
+            }
+            
+            if (node.type === 'trigger') {
+                if (node.isLoading) {
+                    return `<span class="word-span trigger loading" data-id="${node.id}">${escapeHtml(node.text)}</span>`;
+                }
+                return `<span class="word-span trigger" data-id="${node.id}" onclick="expandWord('${node.id}')">${escapeHtml(node.text)}</span>`;
+            }
+            
+            if (node.type === 'expanded') {
+                if (!node.isExpanded) {
+                    return `<span class="word-span trigger collapsed" data-id="${node.id}" onclick="expandWord('${node.id}')" title="Expand">${escapeHtml(node.originalText)}</span>`;
+                } else {
+                    // double click to collapse expanded container
+                    return `
+                        <span class="expanded-container" data-id="${node.id}" ondblclick="collapseNode(event, '${node.id}')">
+                            ${node.children.map(renderNode).join(' ')}
+                        </span>
+                    `;
+                }
+            }
+            
+            if (node.type === 'container') {
+                return node.children.map(renderNode).join(' ');
+            }
+            return '';
+        }
+
+        // Render the top level state into the DOM canvas
+        function render() {
+            const canvas = document.getElementById('text-canvas');
+            canvas.innerHTML = renderNode(textState);
+        }
+
+        // Load supported models dynamically from backend config
+        function loadConfig() {
+            fetch('/api/config')
+                .then(res => res.json())
+                .then(data => {
+                    modelsList = data.models;
+                    
+                    // Restore selected model selection from localStorage
+                    const savedModel = localStorage.getItem('telescopic_selected_model');
+                    if (savedModel && modelsList.some(m => m.id === savedModel)) {
+                        selectedModelId = savedModel;
+                    } else if (modelsList.length > 0) {
+                        selectedModelId = modelsList[0].id;
+                    }
+                    
+                    renderModelCards();
+                    updateApiKeyInputState();
+                })
+                .catch(err => console.error("Error loading config:", err));
+        }
+
+        function renderModelCards() {
+            const container = document.getElementById('model-cards');
+            if (!container) return;
+            
+            container.innerHTML = modelsList.map(m => {
+                const isActive = m.id === selectedModelId;
+                const hasUserKey = userApiKeys[m.provider];
+                
+                let badgeText = "";
+                let badgeClass = "";
+                if (hasUserKey) {
+                    badgeText = "Key Set";
+                    badgeClass = "ready";
+                } else {
+                    badgeText = "Requires Key";
+                    badgeClass = "needs-key";
+                }
+                
+                // Extract provider display name and model name
+                const providerDisplay = m.provider.charAt(0).toUpperCase() + m.provider.slice(1);
+                // For name like "OpenAI gpt-5.4-nano", take everything after first word
+                const modelNameDisplay = m.name.substring(m.name.indexOf(' ') + 1);
+                
+                return `
+                    <div class="model-card ${isActive ? 'active' : ''}" onclick="selectModel('${m.id}')">
+                        <div class="provider">${escapeHtml(providerDisplay)}</div>
+                        <div class="name">${escapeHtml(modelNameDisplay)}</div>
+                        <div class="badge ${badgeClass}">${badgeText}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.selectModel = function(id) {
+            selectedModelId = id;
+            localStorage.setItem('telescopic_selected_model', id);
+            renderModelCards();
+            updateApiKeyInputState();
+        };
+
+        function updateApiKeyInputState() {
+            const selectedModelObj = modelsList.find(m => m.id === selectedModelId);
+            if (!selectedModelObj) return;
+            
+            const provider = selectedModelObj.provider;
+            const input = document.getElementById('api-key-input');
+            const label = document.getElementById('key-label');
+            const statusBadge = document.getElementById('key-status-badge');
+            
+            // Update input value with user's stored key for this provider
+            input.value = userApiKeys[provider] || "";
+            
+            input.placeholder = "Enter your API Key";
+            label.textContent = "API Key";
+            statusBadge.textContent = "○ API Key required";
+            statusBadge.className = "status-badge active-required";
+            
+            // If user has entered a custom key, override badge text
+            if (userApiKeys[provider]) {
+                statusBadge.textContent = "● Key set";
+                statusBadge.className = "status-badge active-user";
+            }
+        }
+
+        // Initial setup on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            initSentence("I made tea.");
+            loadConfig();
+            
+            document.getElementById('reset-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                initSentence("I made tea.");
+            });
+
+            document.getElementById('settings-toggle').addEventListener('click', (e) => {
+                e.preventDefault();
+                const panel = document.getElementById('settings-panel');
+                panel.classList.toggle('collapsed');
+            });
+
+            document.getElementById('api-key-input').addEventListener('input', (e) => {
+                const selectedModelObj = modelsList.find(m => m.id === selectedModelId);
+                if (!selectedModelObj) return;
+                const provider = selectedModelObj.provider;
+                
+                userApiKeys[provider] = e.target.value.trim();
+                
+                // Re-render to update card badges and key status
+                renderModelCards();
+                
+                const statusBadge = document.getElementById('key-status-badge');
+                if (userApiKeys[provider]) {
+                    statusBadge.textContent = "● Key set";
+                    statusBadge.className = "status-badge active-user";
+                } else {
+                    updateApiKeyInputState();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
