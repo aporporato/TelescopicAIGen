@@ -1,4 +1,5 @@
 import pytest
+import httpx
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from app import app, clean_json_response
@@ -91,66 +92,82 @@ def test_expand_unsupported_provider():
 
 
 # ---------------------------------------------------------------------------
-# Unit Tests for LLM Providers (Mocked)
+# Unit Tests for LLM Providers (Mocked via httpx.Client)
 # ---------------------------------------------------------------------------
 
-@patch("httpx.post")
-def test_expand_anthropic_success(mock_httpx_post):
+def test_expand_anthropic_success():
     mock_resp = MagicMock()
     mock_resp.status_code = 200
     mock_resp.json.return_value = {
         "content": [{"text": '{"replacement": "steeped [[hot water]]"}'}]
     }
-    mock_httpx_post.return_value = mock_resp
 
-    payload = {
-        "sentence_with_blank": "I drank _ tea.",
-        "provider": "anthropic",
-        "model": "claude-haiku-4-5-20251001",
-        "api_key": "valid-key"
-    }
-    response = client.post("/api/expand", json=payload)
-    assert response.status_code == 200
-    assert response.json() == {"replacement": "steeped [[hot water]]"}
+    orig_post = httpx.Client.post
 
+    def custom_post(self, url, *args, **kwargs):
+        if "api.anthropic.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
 
-@patch("app.OpenAI")
-def test_expand_openai_success(mock_openai_cls):
-    mock_client = MagicMock()
-    mock_openai_cls.return_value = mock_client
-    
-    mock_completion = MagicMock()
-    mock_completion.choices = [
-        MagicMock(message=MagicMock(content='{"replacement": "delicious [[oolong]]"}'))
-    ]
-    mock_client.chat.completions.create.return_value = mock_completion
-
-    payload = {
-        "sentence_with_blank": "I drank _ tea.",
-        "provider": "openai",
-        "model": "gpt-5.4-nano",
-        "api_key": "valid-openai-key"
-    }
-    response = client.post("/api/expand", json=payload)
-    assert response.status_code == 200
-    assert response.json() == {"replacement": "delicious [[oolong]]"}
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "api_key": "valid-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 200
+        assert response.json() == {"replacement": "steeped [[hot water]]"}
 
 
-@patch("app.genai.Client")
-def test_expand_google_gemini_success(mock_genai_cls):
-    mock_client = MagicMock()
-    mock_genai_cls.return_value = mock_client
-    
+def test_expand_openai_success():
     mock_resp = MagicMock()
-    mock_resp.text = '{"replacement": "warm [[chamomile]]"}'
-    mock_client.models.generate_content.return_value = mock_resp
-
-    payload = {
-        "sentence_with_blank": "I drank _ tea.",
-        "provider": "google",
-        "model": "gemini-3.5-flash",
-        "api_key": "valid-gemini-key"
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": '{"replacement": "delicious [[oolong]]"}'}}]
     }
-    response = client.post("/api/expand", json=payload)
-    assert response.status_code == 200
-    assert response.json() == {"replacement": "warm [[chamomile]]"}
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "api.openai.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "openai",
+            "model": "gpt-5.4-nano",
+            "api_key": "valid-openai-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 200
+        assert response.json() == {"replacement": "delicious [[oolong]]"}
+
+
+def test_expand_google_gemini_success():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": '{"replacement": "warm [[chamomile]]"}'}]}}]
+    }
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "generativelanguage.googleapis.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "google",
+            "model": "gemini-3.5-flash",
+            "api_key": "valid-gemini-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 200
+        assert response.json() == {"replacement": "warm [[chamomile]]"}

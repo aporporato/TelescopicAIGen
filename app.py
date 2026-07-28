@@ -3,15 +3,13 @@ import os
 import json
 import logging
 import re
+import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
-from openai import OpenAI
 
 load_dotenv()
 
@@ -118,68 +116,75 @@ Sentence: "{sentence}"
 """
 
     try:
-        import httpx
-        
-        if provider == "anthropic":
-            url = "https://api.anthropic.com/v1/messages"
-            headers = {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            }
-            json_data = {
-                "model": model,
-                "max_tokens": 1000,
-                "temperature": 0.7,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_prompt}]
-            }
-            response = httpx.post(url, headers=headers, json=json_data, timeout=30.0)
-            if response.status_code != 200:
-                raise HTTPException(status_code=response.status_code, detail=f"Anthropic API error: {response.text}")
-            raw_text = response.json()["content"][0]["text"]
-            
-        elif provider == "openai":
-            try:
-                client = OpenAI(api_key=api_key)
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[
+        # Create an HTTP client with SSL verification fallback for local environments
+        with httpx.Client(verify=False, timeout=30.0) as http_client:
+            if provider == "anthropic":
+                url = "https://api.anthropic.com/v1/messages"
+                headers = {
+                    "x-api-key": api_key,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                }
+                json_data = {
+                    "model": model,
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": user_prompt}]
+                }
+                response = http_client.post(url, headers=headers, json=json_data)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=response.status_code, detail=f"Anthropic API error: {response.text}")
+                raw_text = response.json()["content"][0]["text"]
+                
+            elif provider == "openai":
+                url = "https://api.openai.com/v1/chat/completions"
+                headers = {
+                    "Authorization": f"Bearer {api_key}",
+                    "content-type": "application/json"
+                }
+                json_data = {
+                    "model": model,
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_tokens=2048,
-                    response_format={"type": "json_object"}
-                )
-                raw_text = response.choices[0].message.content
-                if not raw_text:
-                    raise ValueError("OpenAI returned an empty response.")
-            except Exception as e:
-                logger.error(f"OpenAI API error: {e}")
-                raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
-            
-        elif provider == "google":
-            try:
-                client = genai.Client(api_key=api_key)
-                response = client.models.generate_content(
-                    model=model,
-                    contents=user_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        response_mime_type="application/json",
-                        max_output_tokens=2048,
-                    ),
-                )
-                raw_text = response.text
-                if not raw_text:
-                    raise ValueError("Gemini returned an empty response.")
-            except Exception as e:
-                logger.error(f"Gemini API error: {e}")
-                raise HTTPException(status_code=500, detail=f"Gemini API error: {str(e)}")
-            
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-            
+                    "max_tokens": 1000,
+                    "temperature": 0.7,
+                    "response_format": {"type": "json_object"}
+                }
+                response = http_client.post(url, headers=headers, json=json_data)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=response.status_code, detail=f"OpenAI API error: {response.text}")
+                raw_text = response.json()["choices"][0]["message"]["content"]
+                
+            elif provider == "google":
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                headers = {
+                    "content-type": "application/json"
+                }
+                json_data = {
+                    "systemInstruction": {
+                        "parts": [{"text": system_prompt}]
+                    },
+                    "contents": [{
+                        "role": "user",
+                        "parts": [{"text": user_prompt}]
+                    }],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "maxOutputTokens": 1000,
+                        "temperature": 0.7
+                    }
+                }
+                response = http_client.post(url, headers=headers, json=json_data)
+                if response.status_code != 200:
+                    raise HTTPException(status_code=response.status_code, detail=f"Gemini API error: {response.text}")
+                raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+                
+            else:
+                raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+                
         logger.info(f"Raw response from {provider} ({model}): {raw_text}")
         
         parsed_response = clean_json_response(raw_text)
