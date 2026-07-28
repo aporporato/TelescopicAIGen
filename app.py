@@ -136,7 +136,7 @@ def expand_sentence(payload: ExpandRequest):
     system_prompt = """You are a backend JSON API for a Telescopic Text writing application.
 Your ONLY task is to expand a blank "_" in a sentence and return a JSON object containing the replacement phrase.
 
-CRITICAL INSTRUCTIONS:
+<instructions level=critical">
 1. You must respond ONLY with a raw JSON object.
 2. Do NOT write any conversational introduction, markdown blocks, warnings, code enclosures, self-corrections, or trailing comments.
 3. Your output must start with '{' and end with '}'.
@@ -149,9 +149,12 @@ JSON Schema:
   "replacement": "the replacement phrase with 1 to 2 words wrapped in [[brackets]]"
 }
 
-Example:
+</instructions>
+
+<example>
 Input sentence: "The detective found a _ key."
-Output: {"replacement": "mysterious [[glowing]]"}"""
+Output: {"replacement": "mysterious [[glowing]]"}
+</example>"""
 
     user_prompt = f"""Expand the blank "_" in the following sentence with a single, creative, non-redundant phrase of 2 to 6 words.
 Wrap 1 to 2 words inside your expansion in [[brackets]] to make them expandable triggers for the reader. Do not wrap everything.
