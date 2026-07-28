@@ -1,7 +1,7 @@
 {
   "event": "preCommit",
-  "description": "Deterministic hook executing Python backend and JavaScript/TypeScript frontend linters before commits or E2E evaluations",
-  "command": "uv run python scripts/run_linters.py",
+  "description": "Automatic deterministic hook executing Python backend and JavaScript/TypeScript frontend linters before git commits",
+  "command": ".venv/Scripts/python.exe scripts/run_linters.py",
   "timeoutMs": 60000,
   "onFailure": "blockCommit"
 }
