@@ -8,4 +8,6 @@ AI Telescopic Text is an interactive, state-driven recursive writing workspace i
 
 ## Operational Commands
 - **Backend Dev Server**: `uv run python app.py`
+- **Backend Unit Tests**: `uv run pytest`
+- **Frontend Unit Tests**: `npm test`
 - **Package Sync**: `uv sync`

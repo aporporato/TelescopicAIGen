@@ -108,5 +108,7 @@ Open your browser and navigate to `http://127.0.0.1:8000`.
 ## Development & Testing Workflow
 
 - **Start Dev Server**: `uv run python app.py`
-- **End-to-End Evaluation**: Execute pre-push evaluation playbook documented in `skills/e2e-evaluator/SKILL.md`.
-- **Pre-Commit Hook**: Configured in `.github/hooks/sessionEnd.json` to ensure code formatting and quality.
+- **Backend Unit Tests**: `uv run pytest`
+- **Frontend Unit Tests**: `npm test`
+- **End-to-End Evaluation Skill**: `uv run python skills/e2e-evaluator/run_e2e.py`
+- **Multi-Language Linters (Hook)**: `uv run python skills/run_linters.py` (triggered automatically via `.gemini/hooks/sessionEnd.json`).

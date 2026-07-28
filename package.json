@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "ng serve",
     "build": "ng build",
+    "lint": "npx tsc --noEmit",
+    "test": "ng test --watch=false",
     "preview": "ng serve --configuration=production"
   },
   "dependencies": {
