@@ -70,6 +70,44 @@ def clean_json_response(text: str) -> dict:
             
     raise ValueError(f"Could not parse valid JSON from LLM response: {text}")
 
+def sanitize_replacement(replacement: str, sentence_with_blank: str = "") -> str:
+    replacement = replacement.strip()
+    
+    # 1. Remove accidental duplicated consecutive phrases (e.g. "X Y X Y" -> "X Y")
+    tokens = replacement.split()
+    if len(tokens) >= 4 and len(tokens) % 2 == 0:
+        half = len(tokens) // 2
+        if tokens[:half] == tokens[half:]:
+            replacement = " ".join(tokens[:half])
+            tokens = replacement.split()
+
+    # 2. Strip duplicate preceding/trailing words if LLM repeats words immediately surrounding the blank
+    if sentence_with_blank and "_" in sentence_with_blank:
+        parts = sentence_with_blank.split("_")
+        before_text = parts[0].strip()
+        after_text = parts[1].strip() if len(parts) > 1 else ""
+        
+        before_words = [re.sub(r'^\W+|\W+$', '', w).lower() for w in before_text.split() if w.strip()]
+        after_words = [re.sub(r'^\W+|\W+$', '', w).lower() for w in after_text.split() if w.strip()]
+
+        # Check if replacement starts with the last word before blank (e.g. "jasmine-infused")
+        if before_words and tokens:
+            last_before = before_words[-1]
+            first_rep_clean = re.sub(r'[\[\]]', '', re.sub(r'^\W+|\W+$', '', tokens[0])).lower()
+            if first_rep_clean and first_rep_clean == last_before:
+                tokens.pop(0)
+
+        # Check if replacement ends with the first word after blank
+        if after_words and tokens:
+            first_after = after_words[0]
+            last_rep_clean = re.sub(r'[\[\]]', '', re.sub(r'^\W+|\W+$', '', tokens[-1])).lower()
+            if last_rep_clean and last_rep_clean == first_after:
+                tokens.pop(-1)
+
+        replacement = " ".join(tokens)
+
+    return replacement
+
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return templates.TemplateResponse(request=request, name="index.html")
@@ -103,14 +141,17 @@ CRITICAL INSTRUCTIONS:
 2. Do NOT write any conversational introduction, markdown blocks, warnings, code enclosures, self-corrections, or trailing comments.
 3. Your output must start with '{' and end with '}'.
 4. The output JSON must have exactly one key: "replacement".
+5. The replacement phrase replaces ONLY the blank "_". Do NOT repeat words that appear immediately BEFORE or AFTER the blank in the sentence.
+6. Do NOT repeat the target word being expanded at the end of your replacement.
 
 JSON Schema:
 {
   "replacement": "the replacement phrase with 1 to 2 words wrapped in [[brackets]]"
 }"""
 
-    user_prompt = f"""Expand the blank "_" in the following sentence with a detailed, creative phrase of 2 to 6 words.
+    user_prompt = f"""Expand the blank "_" in the following sentence with a single, creative, non-redundant phrase of 2 to 6 words.
 Wrap 1 to 2 words inside your expansion in [[brackets]] to make them expandable triggers for the reader. Do not wrap everything.
+Do NOT repeat the word being expanded or any words that appear immediately before or after the blank.
 
 Sentence: "{sentence}"
 """
@@ -189,6 +230,7 @@ Sentence: "{sentence}"
         
         parsed_response = clean_json_response(raw_text)
         replacement = parsed_response.get("replacement", "").strip()
+        replacement = sanitize_replacement(replacement, sentence_with_blank=sentence)
         
         if not replacement:
             raise ValueError("Empty 'replacement' key in LLM response")

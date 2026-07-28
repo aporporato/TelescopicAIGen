@@ -2,7 +2,7 @@ import pytest
 import httpx
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
-from app import app, clean_json_response
+from app import app, clean_json_response, sanitize_replacement
 
 client = TestClient(app)
 
@@ -32,6 +32,14 @@ def test_clean_json_response_with_commentary():
 def test_clean_json_response_invalid_json():
     with pytest.raises(ValueError, match="Could not parse valid JSON"):
         clean_json_response("This is not JSON at all.")
+
+def test_sanitize_replacement_deduplication():
+    # Consecutive phrase deduplication
+    assert sanitize_replacement("fragrant jasmine-infused tea fragrant jasmine-infused tea") == "fragrant jasmine-infused tea"
+    # Preceding word stripping
+    sent = "I brew a cup of jasmine-infused _ ."
+    res = sanitize_replacement("jasmine-infused [[fragrant]] tea", sentence_with_blank=sent)
+    assert res == "[[fragrant]] tea"
 
 
 # ---------------------------------------------------------------------------
