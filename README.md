@@ -61,24 +61,37 @@ E:\TelescopicAIGen\
 ├── .cursorrules                # Cursor instructions (SSOT link -> AGENTS.md)
 ├── .agents/                    # Antigravity 2.0 & Standard Agentic AI
 │   ├── mcp.json                # MCP server configuration
+│   ├── hooks/
+│   │   └── preCommit.json      # Pre-commit linter hook configuration
 │   └── skills/                 # Agent Skills link -> ../skills
+├── .gemini/                    # Google Antigravity Configuration
+│   ├── settings.json           # Antigravity settings (contextFileName: AGENTS.md)
+│   └── hooks/
+│       └── preCommit.json      # Primary SSOT pre-commit linter hook
 ├── .github/
 │   ├── copilot-instructions.md # GitHub Copilot instructions (SSOT link -> AGENTS.md)
 │   ├── hooks/
-│   │   └── sessionEnd.json     # Pre-commit linter hook configuration
+│   │   └── preCommit.json      # Copilot pre-commit linter hook
 │   └── skills/                 # Skills link -> ../skills
 ├── .codex/
 │   └── instructions.md         # OpenAI Codex instructions (SSOT link -> AGENTS.md)
+├── scripts/
+│   └── run_linters.py          # Deterministic Python & JS/TS linter script
 ├── skills/                     # [Primary Source] Agent Skills (playbooks)
 │   └── e2e-evaluator/
-│       └── SKILL.md            # Pre-push end-to-end evaluation playbook
+│       ├── SKILL.md            # Pre-push end-to-end evaluation playbook
+│       └── run_e2e.py          # Automated E2E test execution script
+├── src/                        # Frontend Web App components
+│   ├── AGENTS.md               # Scope override for Frontend development
+│   └── app.component.spec.ts   # Angular component unit test suite
+├── tests/
+│   └── test_app.py             # Pytest backend API unit test suite
 ├── static/
 │   └── style.css               # Minimalist typographic styling
 ├── templates/
 │   └── index.html              # Workspace layout & state-driven Vanilla JS engine
 ├── app.py                      # FastAPI backend server
 ├── pyproject.toml              # Python project configuration (uv)
-├── .env.example                # Example environment variables
 └── README.md                   # Project documentation
 ```
 
@@ -89,6 +102,7 @@ E:\TelescopicAIGen\
 ### 1. Prerequisites
 - Python 3.9+
 - [uv](https://github.com/astral-sh/uv) (fast Python package manager)
+- Node.js 18+ (for frontend Angular development & linting)
 
 ### 2. Installation & Setup
 Clone the repository and sync virtual environment dependencies:
@@ -111,4 +125,4 @@ Open your browser and navigate to `http://127.0.0.1:8000`.
 - **Backend Unit Tests**: `uv run pytest`
 - **Frontend Unit Tests**: `npm test`
 - **End-to-End Evaluation Skill**: `uv run python skills/e2e-evaluator/run_e2e.py`
-- **Multi-Language Linters (Hook)**: `uv run python skills/run_linters.py` (triggered automatically via `.gemini/hooks/sessionEnd.json`).
+- **Multi-Language Linters (Hook)**: `uv run python scripts/run_linters.py` (triggered automatically via `.gemini/hooks/preCommit.json`).
