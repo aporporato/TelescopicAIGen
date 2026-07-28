@@ -1,13 +1,11 @@
-{
-  "hooks": [
-    {
-      "event": "Postrun",
-      "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
-    },
-    {
-      "event": "PreToolUse",
-      "commandPattern": ".*app\\.py",
-      "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
-    }
-  ]
-}
+[
+  {
+    "event": "Postrun",
+    "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
+  },
+  {
+    "event": "PreToolUse",
+    "commandPattern": ".*app\\.py",
+    "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
+  }
+]

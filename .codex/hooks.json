@@ -1,14 +1,12 @@
-{
-  "hooks": [
-    {
-      "event": "beforeCommand",
-      "commandPattern": "^git\\s+add",
-      "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
-    },
-    {
-      "event": "beforeCommand",
-      "commandPattern": ".*app\\.py",
-      "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
-    }
-  ]
-}
+[
+  {
+    "event": "beforeCommand",
+    "commandPattern": "^git\\s+add",
+    "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
+  },
+  {
+    "event": "beforeCommand",
+    "commandPattern": ".*app\\.py",
+    "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
+  }
+]
