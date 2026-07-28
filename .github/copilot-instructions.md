@@ -15,4 +15,4 @@ AI Telescopic Text is an interactive, state-driven recursive writing workspace i
 
 ## Agentic Quality Directives
 - **Skill Usage**: Before performing `git commit` or `git push`, the agent MUST explicitly execute the E2E evaluation skill: `uv run python skills/e2e-evaluator/run_e2e.py`.
-- **Deterministic Antigravity Hook**: Antigravity automatically triggers `.gemini/hooks/preCommit.json` (`uv run python scripts/run_linters.py`) to enforce Python and JavaScript linter checks.
+- **Agentic Hooks Governance**: For ecosystems supporting pre-command hooks (Cursor, Codex, Mistral Vibe), hooks intercept the `"git add"` command prefix to run linters before commits. For other platforms (Google Antigravity 2.0, Claude Code), linters are executed at the end of the session (`onAgentComplete` / `Postrun` hooks).

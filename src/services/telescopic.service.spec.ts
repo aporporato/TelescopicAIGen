@@ -1,14 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { GeminiService } from './gemini.service';
+import { TelescopicService } from './telescopic.service';
 
-describe('GeminiService', () => {
-  let service: GeminiService;
+describe('TelescopicService', () => {
+  let service: TelescopicService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [GeminiService],
+      providers: [TelescopicService],
     });
-    service = TestBed.inject(GeminiService);
+    service = TestBed.inject(TelescopicService);
   });
 
   it('should be created', () => {

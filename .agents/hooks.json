@@ -1,0 +1,13 @@
+{
+  "hooks": [
+    {
+      "event": "onAgentComplete",
+      "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
+    },
+    {
+      "event": "beforeToolExecution",
+      "toolFilter": "run_command",
+      "command": ".venv/Scripts/python.exe scripts/free_port.py"
+    }
+  ]
+}

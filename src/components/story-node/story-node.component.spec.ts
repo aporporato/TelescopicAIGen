@@ -41,10 +41,26 @@ describe('StoryNodeComponent', () => {
     expect(component.expand.emit).not.toHaveBeenCalled();
   });
 
-  it('should not emit expand event if node already has children', () => {
-    component.node = { ...mockNode, children: [mockNode] };
+  it('should not emit expand event if node already has children and is not collapsed', () => {
+    component.node = { ...mockNode, children: [mockNode], isCollapsed: false };
     spyOn(component.expand, 'emit');
     component.onExpandClick();
     expect(component.expand.emit).not.toHaveBeenCalled();
   });
+
+  it('should emit expand event if node has children but is collapsed', () => {
+    component.node = { ...mockNode, children: [mockNode], isCollapsed: true };
+    spyOn(component.expand, 'emit');
+    component.onExpandClick();
+    expect(component.expand.emit).toHaveBeenCalledWith(component.node);
+  });
+
+  it('should emit collapse event on double click', () => {
+    spyOn(component.collapse, 'emit');
+    const mockEvent = new MouseEvent('dblclick');
+    component.node = { ...mockNode, children: [mockNode] };
+    component.onDblClick(mockEvent);
+    expect(component.collapse.emit).toHaveBeenCalledWith(component.node);
+  });
 });
+

@@ -1,0 +1,9 @@
+{
+  "hooks": [
+    {
+      "event": "pre-exec",
+      "commandPattern": "^git\\s+add",
+      "command": ".venv/Scripts/python.exe scripts/run_linters.py"
+    }
+  ]
+}

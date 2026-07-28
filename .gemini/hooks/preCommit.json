@@ -1,7 +1,0 @@
-{
-  "event": "preCommit",
-  "description": "Automatic deterministic hook executing Python backend and JavaScript/TypeScript frontend linters before git commits",
-  "command": ".venv/Scripts/python.exe scripts/run_linters.py",
-  "timeoutMs": 60000,
-  "onFailure": "blockCommit"
-}

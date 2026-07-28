@@ -1,25 +1,30 @@
-<span 
-  [attr.role]="node.expandable ? 'button' : null"
-  [attr.tabindex]="node.expandable && node.children.length === 0 ? '0' : null"
-  [attr.aria-expanded]="node.children.length > 0"
-  [attr.aria-busy]="node.isLoading"
-  [attr.aria-label]="node.expandable ? 'Expand trigger: ' + node.content : node.content"
-  [class.text-indigo-600]="node.expandable && node.children.length === 0"
-  [class.font-semibold]="node.expandable && node.children.length === 0"
-  [class.cursor-pointer]="node.expandable && node.children.length === 0"
-  [class.hover:underline]="node.expandable && node.children.length === 0"
-  [class.animate-pulse-bg]="node.isLoading"
-  [class.rounded]="node.isLoading"
-  [class.text-indigo-800]="node.children.length > 0"
-  [class.font-medium]="node.children.length > 0"
-  (click)="onExpandClick()"
-  (keydown)="onKeydown($event)">
-  {{ node.content }}
-</span>
-@if(node.children.length > 0) {
-  <span class="font-normal text-slate-700">
-    @for (child of node.children; track child.id) {
-      <app-story-node [node]="child" (expand)="expand.emit($event)"></app-story-node>
+@if (node.children.length === 0 || node.isCollapsed) {
+  @if (node.expandable) {
+    <span 
+      class="word-span trigger"
+      [class.loading]="node.isLoading"
+      [attr.role]="'button'"
+      [attr.tabindex]="0"
+      [attr.aria-expanded]="node.children.length > 0 && !node.isCollapsed"
+      [attr.aria-busy]="node.isLoading"
+      [attr.aria-label]="'Expand trigger: ' + node.content"
+      (click)="onExpandClick()"
+      (keydown)="onKeydown($event)">{{ node.content }}</span>
+  } @else {
+    <span class="word-span plain">{{ node.content }}</span>
+  }
+} @else {
+  <span 
+    class="expanded-container" 
+    [attr.aria-expanded]="true"
+    (dblclick)="onDblClick($event)">
+    @for (child of node.children; track child.id; let last = $last) {
+      <app-story-node 
+        [node]="child" 
+        (expand)="expand.emit($event)"
+        (collapse)="collapse.emit($event)">
+      </app-story-node>@if (!last) {{{ ' ' }}}
     }
   </span>
 }
+

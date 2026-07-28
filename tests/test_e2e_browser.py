@@ -17,10 +17,16 @@ from app import app
 client = TestClient(app)
 
 def test_e2e_spa_root_and_aria_structure():
-    """Verify root / serves HTML with accessibility structure."""
+    """Verify root / serves HTML with accessibility structure and classic Telescopic Text elements."""
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
+    content = response.text
+    assert "<app-root>" in content
+    assert "Georgia" in content
+    assert "Telescopic Text" in content
+    assert "settings-panel" in content
+    assert "word-span" in content
 
 def test_e2e_api_config_endpoint():
     """Verify backend returns configured AI models."""

@@ -3,11 +3,11 @@ import os
 import json
 import logging
 import re
+import time
 import httpx
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -37,10 +37,6 @@ else:
         {"provider": "google", "name": "Gemini 3.5 Flash", "id": "gemini-3.5-flash"},
         {"provider": "anthropic", "name": "Claude Haiku 4.5", "id": "claude-haiku-4-5-20251001"}
     ]
-
-# Mount static and templates
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class ExpandRequest(BaseModel):
     sentence_with_blank: str
@@ -108,8 +104,6 @@ def sanitize_replacement(replacement: str, sentence_with_blank: str = "") -> str
 
     return replacement
 
-import time
-
 def post_with_retry(client: httpx.Client, url: str, headers: dict, json_data: dict, max_retries: int = 2) -> httpx.Response:
     for attempt in range(max_retries + 1):
         resp = client.post(url, headers=headers, json=json_data)
@@ -120,22 +114,90 @@ def post_with_retry(client: httpx.Client, url: str, headers: dict, json_data: di
         return resp
     return resp
 
-@app.get("/", response_class=HTMLResponse)
-def read_root(request: Request):
-    dist_index = os.path.join("dist", "browser", "index.html")
-    if not os.path.exists(dist_index):
-        dist_index = os.path.join("dist", "index.html")
-    if os.path.exists(dist_index):
-        with open(dist_index, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return templates.TemplateResponse(request=request, name="index.html")
+# ---------------------------------------------------------------------------
+# API Endpoints (Declared before static files mount)
+# ---------------------------------------------------------------------------
 
-@app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-    static_fav = os.path.join("static", "favicon.png")
-    if os.path.exists(static_fav):
-        return FileResponse(static_fav)
-    return FileResponse(os.path.join("dist", "browser", "favicon.ico"))
+# ---------------------------------------------------------------------------
+# Pluggable LLM Provider Strategy Registry
+# ---------------------------------------------------------------------------
+
+class LLMProviderAdapter:
+    def format_request(self, model: str, api_key: str, system_prompt: str, user_prompt: str) -> tuple[str, dict, dict]:
+        raise NotImplementedError
+
+    def parse_response(self, response: httpx.Response) -> str:
+        raise NotImplementedError
+
+class AnthropicAdapter(LLMProviderAdapter):
+    def format_request(self, model: str, api_key: str, system_prompt: str, user_prompt: str):
+        url = "https://api.anthropic.com/v1/messages"
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        json_data = {
+            "model": model,
+            "max_tokens": 1000,
+            "temperature": 0.7,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_prompt}]
+        }
+        return url, headers, json_data
+
+    def parse_response(self, response: httpx.Response) -> str:
+        return response.json()["content"][0]["text"]
+
+class OpenAIAdapter(LLMProviderAdapter):
+    def format_request(self, model: str, api_key: str, system_prompt: str, user_prompt: str):
+        url = "https://api.openai.com/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "content-type": "application/json"
+        }
+        json_data = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "max_tokens": 1000,
+            "temperature": 0.7,
+            "response_format": {"type": "json_object"}
+        }
+        return url, headers, json_data
+
+    def parse_response(self, response: httpx.Response) -> str:
+        return response.json()["choices"][0]["message"]["content"]
+
+class GoogleGeminiAdapter(LLMProviderAdapter):
+    def format_request(self, model: str, api_key: str, system_prompt: str, user_prompt: str):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        headers = {
+            "content-type": "application/json",
+            "x-goog-api-key": api_key
+        }
+        json_data = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "maxOutputTokens": 1000,
+                "temperature": 0.7
+            }
+        }
+        return url, headers, json_data
+
+    def parse_response(self, response: httpx.Response) -> str:
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+
+# Pluggable Provider Registry - To add a new provider (e.g. Mistral, Groq, DeepSeek), add adapter here.
+PROVIDER_REGISTRY: dict[str, LLMProviderAdapter] = {
+    "anthropic": AnthropicAdapter(),
+    "openai": OpenAIAdapter(),
+    "google": GoogleGeminiAdapter(),
+}
 
 @app.get("/api/config")
 def get_config():
@@ -153,6 +215,10 @@ def expand_sentence(payload: ExpandRequest):
             
     if not api_key:
         raise HTTPException(status_code=400, detail=f"An API Key is required to run the {provider.title()} model.")
+
+    adapter = PROVIDER_REGISTRY.get(provider)
+    if not adapter:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
     
     system_prompt = """You are a backend JSON API for a Telescopic Text writing application.
 Your ONLY task is to expand a blank "_" in a sentence and return a JSON object containing the replacement phrase.
@@ -185,75 +251,14 @@ Sentence: "{sentence}"
 """
 
     try:
-        # Create an HTTP client with SSL verification fallback for local environments
+        url, headers, json_data = adapter.format_request(model, api_key, system_prompt, user_prompt)
         with httpx.Client(verify=False, timeout=30.0) as http_client:
-            if provider == "anthropic":
-                url = "https://api.anthropic.com/v1/messages"
-                headers = {
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                }
-                json_data = {
-                    "model": model,
-                    "max_tokens": 1000,
-                    "temperature": 0.7,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_prompt}]
-                }
-                response = post_with_retry(http_client, url, headers, json_data)
-                if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code, detail=f"Anthropic API error: {response.text}")
-                raw_text = response.json()["content"][0]["text"]
-                
-            elif provider == "openai":
-                url = "https://api.openai.com/v1/chat/completions"
-                headers = {
-                    "Authorization": f"Bearer {api_key}",
-                    "content-type": "application/json"
-                }
-                json_data = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    "max_tokens": 1000,
-                    "temperature": 0.7,
-                    "response_format": {"type": "json_object"}
-                }
-                response = post_with_retry(http_client, url, headers, json_data)
-                if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code, detail=f"OpenAI API error: {response.text}")
-                raw_text = response.json()["choices"][0]["message"]["content"]
-                
-            elif provider == "google":
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-                headers = {
-                    "content-type": "application/json",
-                    "x-goog-api-key": api_key
-                }
-                json_data = {
-                    "systemInstruction": {
-                        "parts": [{"text": system_prompt}]
-                    },
-                    "contents": [{
-                        "role": "user",
-                        "parts": [{"text": user_prompt}]
-                    }],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "maxOutputTokens": 1000,
-                        "temperature": 0.7
-                    }
-                }
-                response = post_with_retry(http_client, url, headers, json_data)
-                if response.status_code != 200:
-                    raise HTTPException(status_code=response.status_code, detail=f"Gemini API error: {response.text}")
-                raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-                
-            else:
-                raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+            response = post_with_retry(http_client, url, headers, json_data)
+            if response.status_code != 200:
+                prefixes = {"openai": "OpenAI", "google": "Gemini", "anthropic": "Anthropic"}
+                prefix = prefixes.get(provider, provider.title())
+                raise HTTPException(status_code=response.status_code, detail=f"{prefix} API error: {response.text}")
+            raw_text = adapter.parse_response(response)
                 
         logger.info(f"Raw response from {provider} ({model}): {raw_text}")
         
@@ -273,6 +278,17 @@ Sentence: "{sentence}"
     except Exception as e:
         logger.error(f"Error calling LLM: {e}")
         raise HTTPException(status_code=500, detail=f"AI expansion failed: {str(e)}")
+
+# ---------------------------------------------------------------------------
+# Angular SPA Static Files Mount
+# ---------------------------------------------------------------------------
+
+dist_dir = "dist"
+if os.path.exists(os.path.join(dist_dir, "browser")):
+    dist_dir = os.path.join(dist_dir, "browser")
+
+if os.path.exists(dist_dir):
+    app.mount("/", StaticFiles(directory=dist_dir, html=True), name="angular_spa")
 
 if __name__ == '__main__':
     import uvicorn

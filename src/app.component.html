@@ -1,77 +1,86 @@
-<div class="min-h-screen bg-gray-50 flex flex-col items-center p-4 sm:p-6 lg:p-8">
-  <div class="w-full max-w-4xl mx-auto">
-    
-    <header class="text-center mb-8">
-      <h1 class="text-4xl sm:text-5xl font-bold text-slate-800 tracking-tight">
-        AI Telescopic Text
-      </h1>
-      <p class="mt-3 text-lg text-slate-600 max-w-2xl mx-auto">
-        Start with a prompt. Click the <span class="text-indigo-600 font-semibold">highlighted</span> words to expand the story.
-      </p>
-    </header>
+<div id="content">
+  <!-- Muted Top Navigation Bar -->
+  <div id="navigation">
+    <div class="nav-left">
+      <a href="https://www.telescopictext.org/texts/" target="_blank" rel="noopener">TelescopicText.org</a>
+    </div>
+    <div class="nav-right">
+      <a href="#" id="settings-toggle" (click)="toggleSettings($event)">Settings</a>
+      <a href="#" id="reset-link" (click)="resetStory($event)">Reset</a>
+    </div>
+  </div>
 
-    <main class="bg-white rounded-xl shadow-lg p-6 sm:p-8">
-      <div class="flex flex-col sm:flex-row gap-4">
-        <input 
-          type="text" 
-          [ngModel]="prompt()" 
-          (ngModelChange)="prompt.set($event)"
-          (keyup.enter)="generateInitialStory()"
-          placeholder="Enter a story prompt..."
-          class="flex-grow p-3 border border-slate-300 rounded-md shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out text-lg"
-          [disabled]="isLoading()"
-        />
-        <button 
-          (click)="generateInitialStory()" 
-          [disabled]="isLoading() || !prompt().trim()"
-          class="px-8 py-3 bg-indigo-600 text-white font-semibold rounded-md shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors duration-200 text-lg">
-          @if (isLoading()) {
-            <span class="flex items-center justify-center">
-              <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Generating...
-            </span>
-          } @else {
-            <span>Generate</span>
-          }
-        </button>
-      </div>
-
-      @if (error()) {
-        <div class="mt-6 p-4 bg-red-100 border border-red-300 text-red-800 rounded-md">
-          <p>{{ error() }}</p>
+  <!-- Collapsible Settings Panel -->
+  <div id="settings-panel" [class.collapsed]="!isSettingsOpen()">
+    <div class="settings-title">Select Model</div>
+    <div class="model-cards-container" id="model-cards">
+      @for (m of modelsList(); track m.id) {
+        <div 
+          class="model-card" 
+          [class.active]="m.id === selectedModelId()"
+          (click)="selectModel(m.id)">
+          <div class="provider">{{ m.provider }}</div>
+          <div class="name">{{ m.name }}</div>
+          <div 
+            class="badge" 
+            [class.ready]="hasApiKey(m.provider)"
+            [class.needs-key]="!hasApiKey(m.provider)">
+            {{ hasApiKey(m.provider) ? 'Key Set' : 'Requires Key' }}
+          </div>
         </div>
       }
-
-      <div class="mt-8 text-2xl leading-relaxed text-slate-700 p-4 min-h-[10rem] border-t border-slate-200 relative">
-        @if (story().length > 0) {
-          <div class="flex justify-end mb-4">
-            <button 
-              (click)="exportStory()"
-              aria-label="Export or copy full story text to clipboard"
-              class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-md text-sm transition-colors duration-150 flex items-center gap-2">
-              @if (copySuccess()) {
-                <span class="text-green-600 font-semibold">✓ Copied to Clipboard!</span>
-              } @else {
-                <span>📋 Export Story</span>
-              }
-            </button>
-          </div>
-          <p class="whitespace-pre-wrap" aria-live="polite">
-            @for (node of story(); track node.id) {
-              <app-story-node [node]="node" (expand)="handleExpand($event)"></app-story-node>
-            }
-          </p>
-        } @else if (!isLoading()) {
-          <p class="text-slate-400 text-center text-xl pt-8">Your story will appear here...</p>
-        }
-      </div>
-    </main>
+    </div>
     
-    <footer class="text-center mt-8 text-slate-500">
-      <p>Powered by Angular and Google Gemini</p>
-    </footer>
+    <div class="setting-field key-field">
+      <div class="key-label-row">
+        <label for="api-key-input" id="key-label">API Key</label>
+        <span 
+          id="key-status-badge" 
+          class="status-badge"
+          [class.active-user]="hasCurrentApiKey()"
+          [class.active-required]="!hasCurrentApiKey()">
+          {{ hasCurrentApiKey() ? '● Key set' : '○ API Key required' }}
+        </span>
+      </div>
+      <input 
+        type="password" 
+        id="api-key-input" 
+        placeholder="Enter your API Key"
+        [value]="getCurrentApiKey()"
+        (input)="onApiKeyInput($event)"
+      />
+      <div class="key-disclaimer">
+        Your API key is processed strictly in-memory. It is never stored or recorded anywhere on the server or browser, and is lost upon page refresh.
+      </div>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">
+      <p>{{ error() }}</p>
+    </div>
+  }
+
+  <!-- Main Telescopic Text Canvas -->
+  <div class="telescopictext" id="text-canvas" aria-live="polite">
+    @for (node of story(); track node.id; let last = $last) {
+      <app-story-node 
+        [node]="node" 
+        (expand)="handleExpand($event)"
+        (collapse)="handleCollapse($event)">
+      </app-story-node>@if (!last) {{{ ' ' }}}
+    }
+  </div>
+
+  <!-- Unobtrusive Footer Controls -->
+  <div class="footer-controls">
+    <span>Double-click any expanded text to collapse it back.</span>
+    <button 
+      (click)="exportStory()" 
+      class="export-btn"
+      aria-label="Export or copy full story text to clipboard">
+      {{ copySuccess() ? '✓ Copied!' : '📋 Export' }}
+    </button>
   </div>
 </div>
+

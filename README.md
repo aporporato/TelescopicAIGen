@@ -81,15 +81,17 @@ E:\TelescopicAIGen\
 │   └── e2e-evaluator/
 │       ├── SKILL.md            # Pre-push end-to-end evaluation playbook
 │       └── run_e2e.py          # Automated E2E test execution script
-├── src/                        # Frontend Web App components
+├── src/                        # Frontend Angular SPA components (Classic Telescopic UI)
 │   ├── AGENTS.md               # Scope override for Frontend development
-│   └── app.component.spec.ts   # Angular component unit test suite
+│   ├── app.component.html      # Top nav, BYOK settings drawer & telescopic canvas
+│   ├── app.component.ts        # Signals, state management, model selection & collapse
+│   ├── app.component.spec.ts   # Angular component unit test suite
+│   └── components/
+│       └── story-node/         # Recursive story node component (grey pill triggers)
 ├── tests/
-│   └── test_app.py             # Pytest backend API unit test suite
-├── static/
-│   └── style.css               # Minimalist typographic styling
-├── templates/
-│   └── index.html              # Workspace layout & state-driven Vanilla JS engine
+│   ├── test_app.py             # Pytest backend API unit test suite
+│   └── test_e2e_browser.py     # Browser & API E2E verification test suite
+├── index.html                  # Angular SPA entry HTML & classic typographic CSS
 ├── app.py                      # FastAPI backend server
 ├── pyproject.toml              # Python project configuration (uv)
 └── README.md                   # Project documentation

@@ -6,6 +6,7 @@ export interface StoryNode {
   content: string;
   expandable: boolean;
   isLoading: boolean;
+  isCollapsed?: boolean;
   children: StoryNode[];
 }
 
@@ -18,10 +19,19 @@ export interface StoryNode {
 export class StoryNodeComponent {
   @Input({ required: true }) node!: StoryNode;
   @Output() expand = new EventEmitter<StoryNode>();
+  @Output() collapse = new EventEmitter<StoryNode>();
 
   onExpandClick(): void {
-    if (!this.node.isLoading && this.node.children.length === 0) {
+    if (!this.node.isLoading && (this.node.children.length === 0 || this.node.isCollapsed)) {
       this.expand.emit(this.node);
+    }
+  }
+
+
+  onDblClick(event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.node.children && this.node.children.length > 0) {
+      this.collapse.emit(this.node);
     }
   }
 
@@ -32,4 +42,5 @@ export class StoryNodeComponent {
     }
   }
 }
+
 

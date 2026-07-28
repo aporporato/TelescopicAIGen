@@ -1,0 +1,5 @@
+{
+  "event": "beforeCommand",
+  "commandPattern": ".*app\\.py",
+  "command": ".venv/Scripts/python.exe scripts/free_port.py"
+}
