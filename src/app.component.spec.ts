@@ -57,16 +57,37 @@ describe('AppComponent', () => {
   });
 
   it('should handle text expansion', async () => {
-    component.story.set([
-      { id: 1, content: 'Initial text', expandable: true, isLoading: false, children: [] }
-    ]);
+    const targetItem = { id: 1, content: 'Initial text', expandable: true, isLoading: false, children: [] };
+    component.story.set([targetItem]);
 
     mockGeminiService.expandText.and.returnValue(Promise.resolve([
       { content: 'expanded detail', expandable: true }
     ]));
 
-    await component.handleExpand(component.story()[0]);
+    await component.handleExpand(targetItem);
 
     expect(mockGeminiService.expandText).toHaveBeenCalled();
+  });
+
+  it('should not trigger expand if item is non-expandable or already loading', async () => {
+    const nonExpandable = { id: 2, content: 'Static text', expandable: false, isLoading: false, children: [] };
+    await component.handleExpand(nonExpandable);
+    expect(mockGeminiService.expandText).not.toHaveBeenCalled();
+
+    const loadingItem = { id: 3, content: 'Loading text', expandable: true, isLoading: true, children: [] };
+    await component.handleExpand(loadingItem);
+    expect(mockGeminiService.expandText).not.toHaveBeenCalled();
+  });
+
+  it('should handle expansion failure gracefully', async () => {
+    const targetItem = { id: 4, content: 'Failing item', expandable: true, isLoading: false, children: [] };
+    component.story.set([targetItem]);
+
+    mockGeminiService.expandText.and.returnValue(Promise.reject('Expansion failed'));
+
+    await component.handleExpand(targetItem);
+
+    expect(targetItem.isLoading).toBeFalse();
+    expect(component.error()).toContain('Failed to expand');
   });
 });

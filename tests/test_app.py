@@ -36,14 +36,24 @@ def test_clean_json_response_invalid_json():
 def test_sanitize_replacement_deduplication():
     # Consecutive phrase deduplication
     assert sanitize_replacement("fragrant jasmine-infused tea fragrant jasmine-infused tea") == "fragrant jasmine-infused tea"
+    
     # Preceding word stripping
     sent = "I brew a cup of jasmine-infused _ ."
     res = sanitize_replacement("jasmine-infused [[fragrant]] tea", sentence_with_blank=sent)
     assert res == "[[fragrant]] tea"
 
+    # Trailing word stripping
+    sent2 = "I drank _ tea."
+    res2 = sanitize_replacement("steeped herbal tea", sentence_with_blank=sent2)
+    assert res2 == "steeped herbal"
+
+    # Empty inputs
+    assert sanitize_replacement("  ") == ""
+    assert sanitize_replacement("hello world", sentence_with_blank="No blank here") == "hello world"
+
 
 # ---------------------------------------------------------------------------
-# Unit Tests for API Endpoints
+# Unit Tests for API Endpoints & Error Handling
 # ---------------------------------------------------------------------------
 
 def test_read_root():
@@ -100,7 +110,7 @@ def test_expand_unsupported_provider():
 
 
 # ---------------------------------------------------------------------------
-# Unit Tests for LLM Providers (Mocked via httpx.Client)
+# Unit Tests for LLM Providers & Error Edge Cases (Mocked via httpx.Client)
 # ---------------------------------------------------------------------------
 
 def test_expand_anthropic_success():
@@ -179,3 +189,101 @@ def test_expand_google_gemini_success():
         response = client.post("/api/expand", json=payload)
         assert response.status_code == 200
         assert response.json() == {"replacement": "warm [[chamomile]]"}
+
+
+def test_expand_anthropic_error_status():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 401
+    mock_resp.text = "Invalid API Key"
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "api.anthropic.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "anthropic",
+            "model": "claude-haiku-4-5-20251001",
+            "api_key": "invalid-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 401
+        assert "Anthropic API error" in response.json()["detail"]
+
+
+def test_expand_openai_error_status():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 429
+    mock_resp.text = "Rate limit exceeded"
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "api.openai.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "openai",
+            "model": "gpt-5.4-nano",
+            "api_key": "invalid-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 429
+        assert "OpenAI API error" in response.json()["detail"]
+
+
+def test_expand_google_gemini_error_status():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 400
+    mock_resp.text = "API key not valid"
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "generativelanguage.googleapis.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "google",
+            "model": "gemini-3.5-flash",
+            "api_key": "invalid-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 400
+        assert "Gemini API error" in response.json()["detail"]
+
+
+def test_expand_llm_empty_replacement():
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "choices": [{"message": {"content": '{"replacement": ""}'}}]
+    }
+
+    orig_post = httpx.Client.post
+
+    def custom_post(self, url, *args, **kwargs):
+        if "api.openai.com" in str(url):
+            return mock_resp
+        return orig_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.Client, "post", new=custom_post):
+        payload = {
+            "sentence_with_blank": "I drank _ tea.",
+            "provider": "openai",
+            "model": "gpt-5.4-nano",
+            "api_key": "valid-key"
+        }
+        response = client.post("/api/expand", json=payload)
+        assert response.status_code == 500
+        assert "AI expansion failed" in response.json()["detail"]
