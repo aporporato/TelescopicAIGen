@@ -108,13 +108,34 @@ def sanitize_replacement(replacement: str, sentence_with_blank: str = "") -> str
 
     return replacement
 
+import time
+
+def post_with_retry(client: httpx.Client, url: str, headers: dict, json_data: dict, max_retries: int = 2) -> httpx.Response:
+    for attempt in range(max_retries + 1):
+        resp = client.post(url, headers=headers, json=json_data)
+        if resp.status_code in (429, 503) and attempt < max_retries:
+            logger.warning(f"Upstream status {resp.status_code}, retrying attempt {attempt + 1}/{max_retries}...")
+            time.sleep(1.0)
+            continue
+        return resp
+    return resp
+
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
+    dist_index = os.path.join("dist", "browser", "index.html")
+    if not os.path.exists(dist_index):
+        dist_index = os.path.join("dist", "index.html")
+    if os.path.exists(dist_index):
+        with open(dist_index, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
     return templates.TemplateResponse(request=request, name="index.html")
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
-    return FileResponse(os.path.join("static", "favicon.png"))
+    static_fav = os.path.join("static", "favicon.png")
+    if os.path.exists(static_fav):
+        return FileResponse(static_fav)
+    return FileResponse(os.path.join("dist", "browser", "favicon.ico"))
 
 @app.get("/api/config")
 def get_config():
@@ -180,7 +201,7 @@ Sentence: "{sentence}"
                     "system": system_prompt,
                     "messages": [{"role": "user", "content": user_prompt}]
                 }
-                response = http_client.post(url, headers=headers, json=json_data)
+                response = post_with_retry(http_client, url, headers, json_data)
                 if response.status_code != 200:
                     raise HTTPException(status_code=response.status_code, detail=f"Anthropic API error: {response.text}")
                 raw_text = response.json()["content"][0]["text"]
@@ -201,15 +222,16 @@ Sentence: "{sentence}"
                     "temperature": 0.7,
                     "response_format": {"type": "json_object"}
                 }
-                response = http_client.post(url, headers=headers, json=json_data)
+                response = post_with_retry(http_client, url, headers, json_data)
                 if response.status_code != 200:
                     raise HTTPException(status_code=response.status_code, detail=f"OpenAI API error: {response.text}")
                 raw_text = response.json()["choices"][0]["message"]["content"]
                 
             elif provider == "google":
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
                 headers = {
-                    "content-type": "application/json"
+                    "content-type": "application/json",
+                    "x-goog-api-key": api_key
                 }
                 json_data = {
                     "systemInstruction": {
@@ -225,7 +247,7 @@ Sentence: "{sentence}"
                         "temperature": 0.7
                     }
                 }
-                response = http_client.post(url, headers=headers, json=json_data)
+                response = post_with_retry(http_client, url, headers, json_data)
                 if response.status_code != 200:
                     raise HTTPException(status_code=response.status_code, detail=f"Gemini API error: {response.text}")
                 raw_text = response.json()["candidates"][0]["content"]["parts"][0]["text"]

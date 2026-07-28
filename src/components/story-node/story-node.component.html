@@ -1,4 +1,9 @@
 <span 
+  [attr.role]="node.expandable ? 'button' : null"
+  [attr.tabindex]="node.expandable && node.children.length === 0 ? '0' : null"
+  [attr.aria-expanded]="node.children.length > 0"
+  [attr.aria-busy]="node.isLoading"
+  [attr.aria-label]="node.expandable ? 'Expand trigger: ' + node.content : node.content"
   [class.text-indigo-600]="node.expandable && node.children.length === 0"
   [class.font-semibold]="node.expandable && node.children.length === 0"
   [class.cursor-pointer]="node.expandable && node.children.length === 0"
@@ -7,7 +12,8 @@
   [class.rounded]="node.isLoading"
   [class.text-indigo-800]="node.children.length > 0"
   [class.font-medium]="node.children.length > 0"
-  (click)="onExpandClick()">
+  (click)="onExpandClick()"
+  (keydown)="onKeydown($event)">
   {{ node.content }}
 </span>
 @if(node.children.length > 0) {

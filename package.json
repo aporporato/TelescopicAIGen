@@ -8,6 +8,7 @@
     "build": "ng build",
     "lint": "npx tsc --noEmit",
     "test": "ng test --no-watch",
+    "test:coverage": "vitest run --coverage",
     "preview": "ng serve --configuration=production"
   },
   "dependencies": {

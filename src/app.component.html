@@ -45,9 +45,21 @@
         </div>
       }
 
-      <div class="mt-8 text-2xl leading-relaxed text-slate-700 p-4 min-h-[10rem] border-t border-slate-200">
+      <div class="mt-8 text-2xl leading-relaxed text-slate-700 p-4 min-h-[10rem] border-t border-slate-200 relative">
         @if (story().length > 0) {
-          <p class="whitespace-pre-wrap">
+          <div class="flex justify-end mb-4">
+            <button 
+              (click)="exportStory()"
+              aria-label="Export or copy full story text to clipboard"
+              class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-md text-sm transition-colors duration-150 flex items-center gap-2">
+              @if (copySuccess()) {
+                <span class="text-green-600 font-semibold">✓ Copied to Clipboard!</span>
+              } @else {
+                <span>📋 Export Story</span>
+              }
+            </button>
+          </div>
+          <p class="whitespace-pre-wrap" aria-live="polite">
             @for (node of story(); track node.id) {
               <app-story-node [node]="node" (expand)="handleExpand($event)"></app-story-node>
             }

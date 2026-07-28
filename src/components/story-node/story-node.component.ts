@@ -24,4 +24,12 @@ export class StoryNodeComponent {
       this.expand.emit(this.node);
     }
   }
+
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      this.onExpandClick();
+    }
+  }
 }
+

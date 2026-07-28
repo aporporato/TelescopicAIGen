@@ -19,6 +19,19 @@ export class AppComponent {
   story = signal<StoryNode[]>([]);
   isLoading = signal<boolean>(false);
   error = signal<string | null>(null);
+  copySuccess = signal<boolean>(false);
+
+  async exportStory(): Promise<void> {
+    const fullText = this.getCurrentStoryText(this.story());
+    if (!fullText) return;
+    try {
+      await navigator.clipboard.writeText(fullText);
+      this.copySuccess.set(true);
+      setTimeout(() => this.copySuccess.set(false), 2500);
+    } catch (e) {
+      console.error('Copy to clipboard failed:', e);
+    }
+  }
 
   async generateInitialStory(): Promise<void> {
     if (!this.prompt().trim() || this.isLoading()) {
