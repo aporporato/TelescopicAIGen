@@ -1,5 +1,5 @@
 {
   "event": "beforeCommand",
   "commandPattern": ".*app\\.py",
-  "command": ".venv/Scripts/python.exe scripts/free_port.py"
+  "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
 }
