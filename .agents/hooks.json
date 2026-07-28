@@ -1,13 +1,12 @@
-{
-  "hooks": [
-    {
-      "event": "onAgentComplete",
-      "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
-    },
-    {
-      "event": "beforeToolExecution",
-      "toolFilter": "run_command",
-      "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
-    }
-  ]
-}
+[
+  {
+    "event": "onAgentComplete",
+    "command": ".venv/Scripts/python.exe scripts/align_configs.py && .venv/Scripts/python.exe scripts/run_linters.py"
+  },
+  {
+    "event": "beforeToolExecution",
+    "toolFilter": "run_command",
+    "commandPattern": ".*app\\.py",
+    "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
+  }
+]
