@@ -40,6 +40,9 @@ export class AppComponent {
   }
 
   async handleExpand(nodeToExpand: StoryNode): Promise<void> {
+    if (!nodeToExpand.expandable || nodeToExpand.isLoading || (nodeToExpand.children && nodeToExpand.children.length > 0)) {
+      return;
+    }
     const fullContext = this.getCurrentStoryText(this.story());
     
     this.updateNodeLoadingState(this.story, nodeToExpand.id, true);
