@@ -1,0 +1,7 @@
+{
+  "event": "sessionEnd",
+  "description": "Automatically run Python backend syntax and code quality checks before closing session or committing",
+  "command": "uv run python -m py_compile app.py",
+  "timeoutMs": 30000,
+  "onFailure": "blockCommit"
+}

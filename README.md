@@ -1,76 +1,112 @@
-# AI Telescopic Text
+# AI Telescopic Text (`TelescopicAIGen`)
 
-AI Telescopic Text is an interactive writing experiment inspired by the classic [Telescopic Text](https://www.telescopictext.org/) format. Instead of using a predefined, hardcoded hierarchy of substitutions, this application dynamically requests contextual expansions from an LLM in real-time.
-
-Clicking any word in a sentence replaces that word with a blank (`_`) in the background, requests a detailed expansion from your chosen LLM, and injects it recursively, letting you create deeply nested, expandable stories.
+AI Telescopic Text is an interactive, state-driven recursive writing workspace inspired by the classic [Telescopic Text](https://www.telescopictext.org/) format. Instead of using a predefined, static hierarchy of substitutions, this application dynamically generates contextual expansions using Large Language Models (LLMs) in real-time.
 
 ---
 
-## Features
+## Core Concept & Technical Mechanics
 
-- **Multiple LLM Providers**: Choose dynamically between:
-  - **OpenAI** `gpt-5.4-nano`
-  - **Google** `gemini-3.5-flash`
-  - **Anthropic** `claude-haiku-4-5`
-- **Bring Your Own Key (BYOK)**: Strict privacy-first design. All API keys are processed strictly in-memory, never recorded on the server, and never saved in `localStorage` or `sessionStorage` (lost instantly upon page refresh). Keys are cached in-memory per provider for convenient switching.
-- **Recursive Branching**: Expanded words themselves can be clicked to be expanded further.
-- **Interactive Collapsing**: Double-click any expanded block to collapse it back to its original state.
-- **Minimalist Typographic Design**: A clean, light typographic style reminiscent of the classic telescopictext.org, using high-quality serif body font, subtle shaded triggers, and smooth micro-animations.
-- **FastAPI Backend**: A lightweight, asynchronous, type-safe API backend with clean JSON-parsing fallbacks.
+1. **Contextual Blank Expansion**: Clicking any word trigger in a sentence extracts the full sentence context, replaces the clicked word with a blank placeholder (`_`), and sends it to the backend endpoint `/api/expand`.
+2. **Recursive Trigger Generation**: The backend prompts the selected LLM to return a strict JSON payload containing a single key:
+   ```json
+   {
+     "replacement": "hot water for my [[favorite oolong tea]]"
+   }
+   ```
+   The frontend tokenizes bracketed words (`[[triggers]]`) into new interactive clickable nodes while leaving unbracketed text static, allowing infinite nested story branches.
+3. **Interactive Collapsing**: Double-clicking any expanded section instantly collapses it back to its original single word.
+4. **Strict In-Memory BYOK (Bring Your Own Key)**: All API keys (OpenAI, Gemini, Anthropic) are held strictly in frontend JavaScript memory per session. They are passed directly in request payloads to `/api/expand`, never logged or saved on the backend server, and never written to `localStorage` or `sessionStorage`.
 
 ---
 
-## Project Structure
+## Supported LLM Providers & Models
+
+- **OpenAI**: `gpt-5.4-nano`
+- **Google Gemini**: `gemini-3.5-flash`
+- **Anthropic**: `claude-haiku-4-5` (`claude-haiku-4-5-20251001`)
+
+Model configurations are loaded dynamically on page load from the backend `/api/config` endpoint, controlled via the `AVAILABLE_MODELS` environment variable in `.env`.
+
+---
+
+## API Reference
+
+### `GET /api/config`
+Returns the list of available AI models and their providers configured in `.env`.
+- **Response**: `{"models": [{"provider": "openai", "name": "GPT-5.4 Nano", "id": "gpt-5.4-nano"}, ...]}`
+
+### `POST /api/expand`
+Executes a dynamic expansion request against the chosen LLM provider.
+- **Request Payload**:
+  ```json
+  {
+    "sentence_with_blank": "I steeped the leaves in _.",
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "api_key": "your-api-key-here"
+  }
+  ```
+- **Response**: `{"replacement": "[[hot water]] to release delicate flavors"}`
+
+---
+
+## Repository & Governance Structure (Multi-Vendor Agentic Framework)
+
+The project adheres to the open-source **Single Source of Truth (SSOT)** agentic specification (`AGENTS.md`), providing cross-platform vendor support without duplicate instruction files.
 
 ```text
-TelescopicAI/
+E:\TelescopicAIGen\
+├── AGENTS.md                   # [SSOT] Master repository governance file
+├── CLAUDE.md                   # @AGENTS.md import directive for Claude Code
+├── .cursorrules                # Cursor instructions (SSOT link -> AGENTS.md)
+├── .agents/                    # Antigravity 2.0 & Standard Agentic AI
+│   ├── mcp.json                # MCP server configuration
+│   └── skills/                 # Agent Skills link -> ../skills
+├── .github/
+│   ├── copilot-instructions.md # GitHub Copilot instructions (SSOT link -> AGENTS.md)
+│   ├── hooks/
+│   │   └── sessionEnd.json     # Pre-commit linter hook configuration
+│   └── skills/                 # Skills link -> ../skills
+├── .codex/
+│   └── instructions.md         # OpenAI Codex instructions (SSOT link -> AGENTS.md)
+├── skills/                     # [Primary Source] Agent Skills (playbooks)
+│   └── e2e-evaluator/
+│       └── SKILL.md            # Pre-push end-to-end evaluation playbook
 ├── static/
-│   └── style.css          # Minimalist typographic styling and transition effects
+│   └── style.css               # Minimalist typographic styling
 ├── templates/
-│   └── index.html         # Main workspace layout and state-driven Vanilla JS
-├── app.py                 # FastAPI backend server with /api/expand and /api/config endpoints
-├── pyproject.toml         # Python project configuration for uv dependency management
-├── uv.lock                # Locked dependencies for reproducible environments
-└── README.md              # Project documentation
+│   └── index.html              # Workspace layout & state-driven Vanilla JS engine
+├── app.py                      # FastAPI backend server
+├── pyproject.toml              # Python project configuration (uv)
+├── .env.example                # Example environment variables
+└── README.md                   # Project documentation
 ```
 
 ---
 
-## Setup Instructions
+## Getting Started
 
-### Prerequisites
-- [uv](https://github.com/astral-sh/uv) (Astral's fast Python package installer and manager)
+### 1. Prerequisites
+- Python 3.9+
+- [uv](https://github.com/astral-sh/uv) (fast Python package manager)
 
-### 1. Setup the Python Environment
-Using `uv`, you can prepare the virtual environment and sync dependencies automatically:
+### 2. Installation & Setup
+Clone the repository and sync virtual environment dependencies:
 ```bash
 uv sync
 ```
-This command creates a local virtual environment (`.venv`) and installs all dependencies listed in `pyproject.toml`.
 
-### 2. Run the Application
-Start the FastAPI server using `uv run`:
+### 3. Run the Web Application
+Start the FastAPI server:
 ```bash
 uv run python app.py
 ```
-Or start uvicorn directly:
-```bash
-uv run uvicorn app:app --reload
-```
-
-The application will start running at `http://127.0.0.1:8000`.
+Open your browser and navigate to `http://127.0.0.1:8000`.
 
 ---
 
-## How to Use It
+## Development & Testing Workflow
 
-1. Open your browser and navigate to `http://127.0.0.1:8000`.
-2. Click **Settings** in the top-right navigation bar to open the settings drawer.
-3. Select your preferred LLM provider by clicking its card:
-   - **OpenAI** (`gpt-5.4-nano`)
-   - **Google** (`gemini-3.5-flash`)
-   - **Anthropic** (`claude-haiku-4-5`)
-4. Paste your API key into the input field. Note that each provider maintains its own key state in-memory so you can switch models freely without losing your keys.
-5. Click on any shaded word trigger in the canvas (e.g. `"I"`, `"made"`, or `"tea"`) to trigger a dynamic AI expansion.
-6. **Double-click** anywhere inside an expanded phrase to collapse it back into its original single word.
-7. Click **Reset** in the top-right navigation bar at any point to start over.
+- **Start Dev Server**: `uv run python app.py`
+- **End-to-End Evaluation**: Execute pre-push evaluation playbook documented in `skills/e2e-evaluator/SKILL.md`.
+- **Pre-Commit Hook**: Configured in `.github/hooks/sessionEnd.json` to ensure code formatting and quality.

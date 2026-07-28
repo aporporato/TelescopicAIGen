@@ -148,8 +148,7 @@ Sentence: "{sentence}"
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
                     ],
-                    max_tokens=1000,
-                    temperature=0.7,
+                    max_tokens=2048,
                     response_format={"type": "json_object"}
                 )
                 raw_text = response.choices[0].message.content
@@ -168,8 +167,7 @@ Sentence: "{sentence}"
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         response_mime_type="application/json",
-                        max_output_tokens=1000,
-                        temperature=0.7,
+                        max_output_tokens=2048,
                     ),
                 )
                 raw_text = response.text
