@@ -124,5 +124,5 @@ Open your browser and navigate to `http://127.0.0.1:8000`.
 - **Start Dev Server**: `uv run python app.py`
 - **Backend Unit Tests**: `uv run pytest`
 - **Frontend Unit Tests**: `npm test`
-- **End-to-End Evaluation Skill**: `uv run python skills/e2e-evaluator/run_e2e.py`
-- **Multi-Language Linters (Hook)**: `uv run python scripts/run_linters.py` (triggered automatically via `.gemini/hooks/preCommit.json`).
+- **E2E Evaluation Skill**: `uv run python skills/e2e-evaluator/run_e2e.py` (explicitly invoked by agent before commit/push)
+- **Deterministic Antigravity Hook**: `uv run python scripts/run_linters.py` (triggered automatically via `.gemini/hooks/preCommit.json`).
