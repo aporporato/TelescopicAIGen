@@ -29,8 +29,22 @@ def main():
     if not is_app_start:
         return
 
+    print("[FREE-PORT] Starting port and process cleanup for app.py...")
+    
+    # 1. Kill any process containing "app.py" in command line (except ourselves)
     try:
-        # Run netstat to find process using port 8000
+        current_pid = os.getpid()
+        powershell_cmd = (
+            f'powershell -Command "Get-CimInstance Win32_Process -Filter \\"CommandLine like \'%app.py%\'\\" | '
+            f'Where-Object {{ $_.ProcessId -ne {current_pid} }} | '
+            f'ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}"'
+        )
+        subprocess.run(powershell_cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as e:
+        print(f"[FREE-PORT] Error killing app.py processes: {e}")
+
+    # 2. Kill any process listening on port 8000 (and its children tree)
+    try:
         output = subprocess.check_output("netstat -ano", shell=True).decode('utf-8')
         pids = set()
         for line in output.splitlines():
@@ -41,11 +55,11 @@ def main():
         for pid_str in pids:
             try:
                 pid = int(pid_str)
-                if pid != os.getpid(): # Avoid killing ourselves
-                    print(f"[FREE-PORT] Terminating existing server process {pid} on port 8000...")
-                    # Kill using taskkill
-                    subprocess.run(f"taskkill /F /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except ValueError:
+                if pid != current_pid:
+                    print(f"[FREE-PORT] Terminating process tree {pid} listening on port 8000...")
+                    # Kill using taskkill with /T (tree kill)
+                    subprocess.run(f"taskkill /F /T /PID {pid}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
                 continue
     except Exception as e:
         print(f"[FREE-PORT] Error checking port 8000: {e}")
