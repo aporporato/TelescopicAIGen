@@ -1,0 +1,6 @@
+{
+  "event": "preToolCall",
+  "toolFilter": "run_command",
+  "commandPattern": ".*app\\.py",
+  "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
+}

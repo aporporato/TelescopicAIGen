@@ -4,6 +4,11 @@
       "event": "pre-exec",
       "commandPattern": "^git\\s+add",
       "command": ".venv/Scripts/python.exe scripts/run_linters.py"
+    },
+    {
+      "event": "pre-exec",
+      "commandPattern": ".*app\\.py",
+      "command": ".venv/Scripts/python.exe scripts/ensure_single_instance.py"
     }
   ]
 }
